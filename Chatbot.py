@@ -7,28 +7,52 @@ from langchain_core.prompts import PromptTemplate
 from langchain_ollama import OllamaLLM
 from httpx import ConnectError
 
-# Configuration: Get Ollama base URL from environment variable or use default
+# Try to import OpenAI (optional, for cloud deployment)
+try:
+    from langchain_openai import ChatOpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+# Configuration: Get LLM provider and settings from environment variables
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")  # "ollama" or "openai"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
 # Initialize LLM with error handling
 @st.cache_resource
 def get_llm():
-    try:
-        llm_instance = OllamaLLM(
-            model="llama3.2:1b",
-            base_url=OLLAMA_BASE_URL
-        )
-        # Test connection with a simple call (optional, can be removed if too slow)
-        return llm_instance
-    except Exception as e:
-        # Don't show error here as it's cached - will be handled in UI
-        return None
+    if LLM_PROVIDER.lower() == "openai":
+        if not OPENAI_AVAILABLE:
+            return None, "OpenAI package not installed. Install with: pip install langchain-openai"
+        if not OPENAI_API_KEY:
+            return None, "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
+        try:
+            llm_instance = ChatOpenAI(
+                model=OPENAI_MODEL,
+                api_key=OPENAI_API_KEY,
+                temperature=0.7
+            )
+            return llm_instance, "openai"
+        except Exception as e:
+            return None, f"Failed to initialize OpenAI: {str(e)}"
+    else:
+        # Default to Ollama
+        try:
+            llm_instance = OllamaLLM(
+                model="llama3.2:1b",
+                base_url=OLLAMA_BASE_URL
+            )
+            return llm_instance, "ollama"
+        except Exception as e:
+            return None, f"Failed to initialize Ollama: {str(e)}"
 
-llm = get_llm()
+llm, provider = get_llm()
 
 # Initialize Memory
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = ChatMessageHistory()  # Stores user-AI conversation history
+    st.session_state.chat_history = ChatMessageHistory()
 
 # Define AI Chat Prompt
 prompt = PromptTemplate(
@@ -39,14 +63,23 @@ prompt = PromptTemplate(
 # Function to run AI chat with memory
 def run_chain(question):
     if llm is None:
-        return "Error: Ollama LLM is not available. Please ensure Ollama is running locally or configure a remote endpoint."
+        return f"Error: LLM is not available. {provider}"
     
     try:
         # Retrieve past chat history
         chat_history_text = "\n".join([f"{msg.type.capitalize()}: {msg.content}" for msg in st.session_state.chat_history.messages])
         
+        # Format prompt
+        formatted_prompt = prompt.format(chat_history=chat_history_text, question=question)
+        
         # Generate the AI response
-        response = llm.invoke(prompt.format(chat_history=chat_history_text, question=question))
+        if provider == "openai":
+            # OpenAI uses ChatOpenAI which returns a message object
+            response_obj = llm.invoke(formatted_prompt)
+            response = response_obj.content if hasattr(response_obj, 'content') else str(response_obj)
+        else:
+            # Ollama returns string directly
+            response = llm.invoke(formatted_prompt)
         
         # Store new user input and AI response in memory
         st.session_state.chat_history.add_user_message(question)
@@ -61,10 +94,7 @@ def run_chain(question):
             "2. Start Ollama service\n"
             "3. Pull the model: `ollama pull llama3.2:1b`\n\n"
             "**For Cloud Deployment:**\n"
-            "Ollama requires a local installation. For Streamlit Cloud, consider:\n"
-            "- Using a cloud LLM API (OpenAI, Anthropic, etc.)\n"
-            "- Setting up a remote Ollama server and configuring OLLAMA_BASE_URL\n"
-            "- Deploying on a platform that supports Ollama (like Railway, Render with custom setup)"
+            "Set LLM_PROVIDER=openai and OPENAI_API_KEY in your environment variables."
         )
         return error_msg
     except Exception as e:
@@ -77,16 +107,24 @@ st.write("Ask me anything!")
 # Show connection status in sidebar
 with st.sidebar:
     st.header("Configuration")
+    
     if llm is None:
-        st.error("⚠️ Ollama not connected")
+        st.error(f"⚠️ LLM not connected")
+        st.caption(f"Error: {provider}")
     else:
-        st.success("✅ Ollama connected")
-    st.caption(f"Endpoint: {OLLAMA_BASE_URL}")
-    st.caption("Model: llama3.2:1b")
+        st.success(f"✅ {provider.upper()} connected")
+    
+    if provider == "ollama":
+        st.caption(f"Endpoint: {OLLAMA_BASE_URL}")
+        st.caption("Model: llama3.2:1b")
+    else:
+        st.caption(f"Model: {OPENAI_MODEL}")
     
     st.info(
-        "**Note:** This app requires Ollama running locally. "
-        "For cloud deployment, configure a remote Ollama endpoint via OLLAMA_BASE_URL environment variable."
+        "**Provider:** Set LLM_PROVIDER environment variable to 'ollama' or 'openai'.\n\n"
+        "**For Cloud:** Use OpenAI by setting:\n"
+        "- LLM_PROVIDER=openai\n"
+        "- OPENAI_API_KEY=your-api-key"
     )
 
 user_input = st.text_input("Your Question:")
