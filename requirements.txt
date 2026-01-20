@@ -6,6 +6,18 @@ langchain-core>=0.1.0
 # Streamlit for web UI (required for Chatbot.py)
 streamlit>=1.28.0
 
+# HTTP client (dependency of langchain-ollama)
+httpx>=0.24.0
+
 # Note: Make sure Ollama is installed and running on your system
 # Download from: https://ollama.ai/
 # Pull the model: ollama pull llama3.2:1b
+
+# DEPLOYMENT NOTES:
+# For local deployment: Just run `streamlit run Chatbot.py`
+# For cloud deployment (Streamlit Cloud, etc.):
+#   - Ollama requires local installation, so cloud deployment needs:
+#     1. A remote Ollama server, OR
+#     2. Use a cloud LLM API instead (OpenAI, Anthropic, etc.)
+#   - To use remote Ollama, set environment variable:
+#     OLLAMA_BASE_URL=http://your-ollama-server:11434
