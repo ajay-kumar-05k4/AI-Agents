@@ -14,11 +14,19 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-# Configuration: Get LLM provider and settings from environment variables
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")  # "ollama" or "openai"
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+# Configuration: Get LLM provider and settings from Streamlit secrets or environment variables
+# Streamlit secrets take precedence (for Streamlit Cloud)
+try:
+    LLM_PROVIDER = st.secrets.get("LLM_PROVIDER", os.getenv("LLM_PROVIDER", "ollama"))
+    OLLAMA_BASE_URL = st.secrets.get("OLLAMA_BASE_URL", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+    OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+    OPENAI_MODEL = st.secrets.get("OPENAI_MODEL", os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"))
+except (AttributeError, FileNotFoundError):
+    # Fallback to environment variables if secrets not available
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")  # "ollama" or "openai"
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
 # Initialize LLM with error handling
 @st.cache_resource
