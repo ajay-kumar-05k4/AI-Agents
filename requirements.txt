@@ -1,0 +1,11 @@
+# LangChain packages for AI agent functionality
+langchain-ollama>=0.1.0
+langchain-community>=0.0.20
+langchain-core>=0.1.0
+
+# Streamlit for web UI (required for Chatbot.py)
+streamlit>=1.28.0
+
+# Note: Make sure Ollama is installed and running on your system
+# Download from: https://ollama.ai/
+# Pull the model: ollama pull llama3.2:1b
